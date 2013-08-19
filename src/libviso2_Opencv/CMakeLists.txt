@@ -1,13 +1,11 @@
 # project
-cmake_minimum_required (VERSION 2.6)
 find_package( OpenCV REQUIRED )
-project (libviso2_opencv)
 
 # directories
 set (LIBVISO2_SRC_DIR libviso2src)
 
 # include directory
-include_directories("${LIBVISO2_SRC_DIR}" ../../3rdparty/l1averaging/)
+include_directories("${LIBVISO2_SRC_DIR}")
 
 # use sse3 instruction set
 SET(CMAKE_CXX_FLAGS "-msse3")
