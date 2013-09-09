@@ -122,9 +122,31 @@ vector<double> VisualOdometryMonoFlight::estimateMotion (vector<Matcher::p_match
 	  cout << "not enough motion, bailing out";
 	  return vector<double>();
   }
+
+  Matrix plane = findBestPlane(X_plane);
+
+    // compute rotation angles
+  double ry = asin(R.val[0][2]);
+  double rx = asin(-R.val[1][2]/cos(ry));
+  double rz = asin(-R.val[0][1]/cos(ry));
+
+
+  // return parameter vector
+  vector<double> tr_delta;
+  tr_delta.resize(6);
+  tr_delta[0] = rx;
+  tr_delta[1] = ry;
+  tr_delta[2] = rz;
+  tr_delta[3] = t.val[0][0];
+  tr_delta[4] = t.val[1][0];
+  tr_delta[5] = t.val[2][0];
+  return tr_delta;
+
   
+
+
   // project features to 2d
-  Matrix x_plane(2,X_plane.n);
+/*  Matrix x_plane(2,X_plane.n);
   x_plane.setMat(X_plane.getMat(1,0,2,-1),0,0);
   
   Matrix n(2,1);
@@ -167,6 +189,72 @@ vector<double> VisualOdometryMonoFlight::estimateMotion (vector<Matcher::p_match
   tr_delta[4] = t.val[1][0];
   tr_delta[5] = t.val[2][0];
   return tr_delta;
+	*/
+}
+
+int planeSearchIterations = 100;
+int planeSearchRandSeed = 10;
+float acceptableDistanceRatio = 0.05;
+
+Matrix VisualOdometryMonoFlight::findBestPlane(Matrix X_plane){
+	
+	//srand(planeSearchRandSeed);
+	int n = X_plane.n;
+	vector<float> cachedDistances;
+	{
+	Matrix tmp = X_plane.getMat(0,0,0,-1)*X_plane.getMat(0,0,0,-1)+X_plane.getMat(1,0,1,-1)*X_plane.getMat(1,0,1,-1)+X_plane.getMat(2,0,2,-1)*X_plane.getMat(2,0,2,-1);
+	for (int i = 0; i < n; i++){
+		cachedDistances.push_back(sqrt(tmp.getMat(0,i,0,i).l2norm));
+	}
+	}
+
+	int bestCount = 0;
+	Matrix bestNormal;
+	Matrix bestD;
+	for (int i = 0 ; i < planeSearchIterations ; i++){
+		// choose 3 random points;
+		int p1 = rand()%n;
+		int p2 = rand()%n-1;
+		if (p2 >= p1) p2++;
+		
+		int p3 = rand()%n-2;
+		if (p3 >= p1) p3++;
+		if (p3 >= p2) {
+			p3++;
+			if (p3 == p1) p3++; //niche possiblity 
+		};
+		// find plane through the points.
+		
+		Matrix p2_p1 = X_plane.getMat(0,p1,2,p1)-X_plane.getMat(0,p2,2,p2);
+		Matrix p3_p1 = X_plane.getMat(0,p1,2,p1)-X_plane.getMat(0,p3,2,p3);
+		
+		Matrix normal = Matrix::cross(p2_p1,p3_p1);
+		normal = normal/normal.l2norm;
+		Matrix d = -(normal*X_plane.getMat(0,p1,2,p1));
+
+		//calculate distance between all the points and the plane
+		int count = 0;
+		for (int j = 0; j < n; j++){
+			// count how many points are close to the plane
+			float dist = (normal*X_plane.getMat(0,j,2,j)+d).l2norm();
+			if (dist/cachedDistances.at(n) < acceptableDistanceRatio);
+			{
+				count ++;
+			}
+		}
+		//keep best plane
+		if (bestCount < count){
+			bestCount = count;
+			bestNormal = normal;
+			bestD = d;
+		}
+	}
+	
+	Matrix BestPlane(4,0);
+	BestPlane.setMat(bestNormal,0,0);
+	BestPlane.setMat(bestD,0,3);
+
+	return BestPlane;
 }
 
 Matrix VisualOdometryMonoFlight::smallerThanMedian (Matrix &X,double &median) {

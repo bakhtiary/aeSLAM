@@ -64,6 +64,8 @@ public:
   bool process (uint8_t *I,int32_t* dims,bool replace=false);
 
 private:
+  Matrix findBestPlane(Matrix X_plane);
+  
 
   template<class T> struct idx_cmp {
     idx_cmp(const T arr) : arr(arr) {}
